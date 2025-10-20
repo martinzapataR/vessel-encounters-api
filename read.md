@@ -21,6 +21,10 @@ A FastAPI application that loads a pre-trained machine learning model to predict
 
 ### API Endpoints
 
+### Launch 
+- uvicorn main:app --reload
+
+
 #### 1. GET /
 - Root endpoint showing API status
 - Returns: `{message, status, model_loaded}`
@@ -55,35 +59,88 @@ A FastAPI application that loads a pre-trained machine learning model to predict
 ## Usage Example
 
 ```bash
-curl -X POST http://localhost:5000/predict \
+curl -X POST http://127.0.0.1:8000/predict \
   -H "Content-Type: application/json" \
   -d '{
-    "hdiff": 0.5,
-    "hdiff_sin": 0.479,
-    "hdiff_cos": 0.878,
-    "hdiff_norm": 0.25,
-    "spd_diff": 1.2,
-    "spd_diff_sq": 1.44,
-    "loitering_sub2": 0.3,
-    "hour": 14.0,
-    "is_weekend": 0,
-    "same_mid": 1
+    "hdiff": 18,
+    "hdiff_sin": 0.3090169944,
+    "hdiff_cos": 0.9510565163,
+    "hdiff_norm": 0.1,
+    "hour": 18,
+    "is_weekend": 1,
+    "loitering_sub2": 1,
+    "same_mid": 0,
+    "spd_diff": 0,
+    "spd_diff_sq": 0
+  }'
+```
+```bash
+## Example 2 Postive 
+
+curl -X POST http://127.0.0.1:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "hdiff": 5.6,
+    "hdiff_sin": 0.09758289976,
+    "hdiff_cos": 0.9952274,
+    "hdiff_norm": 0.03111111111,
+    "hour": 0,
+    "is_weekend": 1,
+    "loitering_sub2": 1,
+    "same_mid": 1,
+    "spd_diff": 0,
+    "spd_diff_sq": 0
+  }'
+
+
+```bash
+## Example 3 Postive 
+curl -X POST http://127.0.0.1:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "hdiff": 20,
+    "hdiff_sin": 0.3420201433,
+    "hdiff_cos": 0.9396926208,
+    "hdiff_norm": 0.1111111111,
+    "hour": 7,
+    "is_weekend": 1,
+    "loitering_sub2": 1,
+    "same_mid": 1,
+    "spd_diff": 0,
+    "spd_diff_sq": 0
+  }'
+
+```bash
+## Example 4 Postive 
+curl -X POST http://127.0.0.1:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "hdiff": 8.8,
+    "hdiff_sin": 0.1529858363,
+    "hdiff_cos": 0.9882283814,
+    "hdiff_norm": 0.04888888889,
+    "hour": 17,
+    "is_weekend": 1,
+    "loitering_sub2": 1,
+    "same_mid": 1,
+    "spd_diff": 0,
+    "spd_diff_sq": 0
   }'
 ```
 
 ## API Documentation
 Interactive API documentation is available at:
-- Swagger UI: http://localhost:5000/docs
-- ReDoc: http://localhost:5000/redoc
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
 
 ## Technical Stack
 - **Framework**: FastAPI
 - **Server**: Uvicorn (ASGI)
 - **ML Libraries**: scikit-learn, pandas, numpy
 - **Validation**: Pydantic
-- **Port**: 5000 (bound to 0.0.0.0)
+- **Port**: 8000 (bound to 0.0.0.0)
 
 ## Notes
 - Model file must be loaded with joblib (not standard pickle)
-- Server binds to 0.0.0.0:5000 for Replit compatibility
+- Server binds to 0.0.0.0:8000 
 - Confidence levels: high (>0.75), medium (0.4-0.75), low (<0.4)
