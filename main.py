@@ -1,12 +1,22 @@
 from fastapi import FastAPI, HTTPException
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.redis import RedisBackend
+from fastapi_cache.decorator import cache
+from redis import asyncio
 from pydantic import BaseModel, Field, ConfigDict
 from contextlib import asynccontextmanager
 import joblib
 import pandas as pd
 import numpy as np
 import uvicorn
+import logging
+from datetime import datetime
+import os
 
+logger = logging.getLogger(__name__)
 model_data = {}
+
+LOCAL_REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -14,6 +24,15 @@ async def lifespan(app: FastAPI):
         model_data["pipeline"] = joblib.load('attached_assets/vmodel_pipeline_1760914232646.pkl')
         print("Model loaded successfully")
         print(f"Required features: {model_data['pipeline']['features']}")
+        HOST_URL = LOCAL_REDIS_URL  # replace this according to the Lab Requirements
+        redis = asyncio.from_url(HOST_URL, encoding="utf8", decode_responses=True)
+
+        # We initialize the connection to Redis and declare that all keys in the
+        # database will be prefixed with w255-cache-predict. Do not change this
+        # prefix for the submission.
+        FastAPICache.init(RedisBackend(redis), prefix="w255-cache-prediction")
+
+        yield
     except Exception as e:
         print(f"Error loading model: {e}")
         raise e
@@ -80,6 +99,7 @@ async def health_check():
     }
 
 @app.post("/predict", response_model=PredictionOutput, tags=["Prediction"])
+@cache()
 async def predict(input_data: PredictionInput):
     if "pipeline" not in model_data:
         raise HTTPException(status_code=503, detail="Model not loaded")
