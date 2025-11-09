@@ -1,8 +1,8 @@
 [project]
-name = "repl-nix-workspace"
+name = "src"
 version = "0.1.0"
 description = "Add your description here"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.13"
 dependencies = [
     "fastapi>=0.119.0",
     "numpy>=2.3.4",
@@ -10,4 +10,9 @@ dependencies = [
     "pydantic>=2.12.3",
     "scikit-learn>=1.7.2",
     "uvicorn>=0.38.0",
+    "joblib (==1.5.1)",
+    "fastapi-cache2[redis] (==0.1.9)"
 ]
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

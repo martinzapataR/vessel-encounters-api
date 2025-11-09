@@ -1,25 +1,91 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field, ConfigDict
 from contextlib import asynccontextmanager
+from pathlib import Path
+import os
+import logging
+import hashlib
+import json
+
 import joblib
 import pandas as pd
-import numpy as np
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field, ConfigDict
 import uvicorn
 
+#-------------------------------------------
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.redis import RedisBackend
+from fastapi_cache.decorator import cache
+from redis import asyncio as aioredis  # redis>=5
+
+#Redis code --------------------------------
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("encounter-api")
+#----------------------------------------------
+
+# global in-memory store
 model_data = {}
+
+# Resolve project root: .../mvp/
+BASE_DIR = Path(__file__).resolve().parents[1]
+
+# Allow MODEL_PATH override, else default to mvp/vmodel_pipeline.pkl
+MODEL_PATH = Path(os.getenv("MODEL_PATH", BASE_DIR / "vmodel_pipeline.pkl"))
+
+
+# Redis config via env with sane defaults for k8s Service "redis-service"
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis-service:6379/0")
+#REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+CACHE_PREFIX = os.getenv("CACHE_PREFIX", "w255-cache-prediction")
+CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "300"))  # 5 minutes by default
+#-------------------------------------------------------------------------------
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
-        model_data["pipeline"] = joblib.load('attached_assets/vmodel_pipeline_1760914232646.pkl')
-        print("Model loaded successfully")
+        if not MODEL_PATH.exists():
+            raise FileNotFoundError(
+                f"Model not found at: {MODEL_PATH}\n"
+                f"Tip: put the file at {BASE_DIR/'vmodel_pipeline.pkl'} "
+                f"or set MODEL_PATH to an absolute path."
+            )
+        model_data["pipeline"] = joblib.load(MODEL_PATH)
+        print(f"Model loaded from {MODEL_PATH}")
+        # Optional: validate expected keys
+        for k in ("features", "model"):
+            if k not in model_data["pipeline"]:
+                raise KeyError(f"Missing '{k}' in loaded pipeline object.")
         print(f"Required features: {model_data['pipeline']['features']}")
     except Exception as e:
         print(f"Error loading model: {e}")
-        raise e
-    yield
-    model_data.clear()
+        raise
+    #yield  # model available during app lifetime
+    #model_data.clear()  # clean up on shutdown
 
+
+    # Connect Redis & init cache ---------------------------------------
+    try:
+        redis = aioredis.from_url(REDIS_URL, encoding="utf-8", decode_responses=True)
+        # Smoke test the connection
+        await redis.ping()
+        FastAPICache.init(RedisBackend(redis), prefix=CACHE_PREFIX)
+        logger.info(f"Redis cache initialized at {REDIS_URL} with prefix '{CACHE_PREFIX}'")
+    except Exception as e:
+        logger.exception("Failed to initialize Redis cache")
+        raise
+
+    yield
+
+    # Cleanup (optional)
+    model_data.clear()
+    try:
+        backend = FastAPICache.get_backend()
+        if backend and hasattr(backend, "redis"):
+            await backend.redis.close()
+            logger.info("Redis connection closed")
+    except Exception:
+        pass
+#----------------------------------------------------------------------------------------------
 app = FastAPI(
     title="Encounter Prediction API",
     description="API for predicting encounter probability using a trained ML model",
@@ -80,6 +146,7 @@ async def health_check():
     }
 
 @app.post("/predict", response_model=PredictionOutput, tags=["Prediction"])
+@cache()
 async def predict(input_data: PredictionInput):
     if "pipeline" not in model_data:
         raise HTTPException(status_code=503, detail="Model not loaded")
